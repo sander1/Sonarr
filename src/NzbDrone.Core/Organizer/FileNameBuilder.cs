@@ -280,31 +280,45 @@ namespace NzbDrone.Core.Organizer
             foreach (var episodeFormat in episodeFormats)
             {
                 var seasonEpisodePattern = episodeFormat.SeasonEpisodePattern;
+                var multiEpisodeStyle = (MultiEpisodeStyle) namingConfig.MultiEpisodeStyle;
 
-                foreach (var episode in episodes.Skip(1))
+                if (multiEpisodeStyle == MultiEpisodeStyle.Range && episodes.Count > 1)
                 {
-                    switch ((MultiEpisodeStyle)namingConfig.MultiEpisodeStyle)
-                    {
-                        case MultiEpisodeStyle.Duplicate:
-                            seasonEpisodePattern += episodeFormat.Separator + episodeFormat.SeasonEpisodePattern;
-                            break;
-
-                        case MultiEpisodeStyle.Repeat:
-                            seasonEpisodePattern += episodeFormat.EpisodeSeparator + episodeFormat.EpisodePattern;
-                            break;
-
-                        case MultiEpisodeStyle.Scene:
-                            seasonEpisodePattern += "-" + episodeFormat.EpisodeSeparator + episodeFormat.EpisodePattern;
-                            break;
-
-                        //MultiEpisodeStyle.Extend
-                        default:
-                            seasonEpisodePattern += "-" + episodeFormat.EpisodePattern;
-                            break;
-                    }
+                    seasonEpisodePattern += "-" + episodeFormat.EpisodePattern;
+                    seasonEpisodePattern = ReplaceNumberTokens(seasonEpisodePattern, new List<Episode>
+                                                                                        {
+                                                                                            episodes.First(),
+                                                                                            episodes.Last()
+                                                                                        });
                 }
 
-                seasonEpisodePattern = ReplaceNumberTokens(seasonEpisodePattern, episodes);
+                else
+                {
+                    foreach (var episode in episodes.Skip(1))
+                    {
+                        switch (multiEpisodeStyle)
+                        {
+                            case MultiEpisodeStyle.Duplicate:
+                                seasonEpisodePattern += episodeFormat.Separator + episodeFormat.SeasonEpisodePattern;
+                                break;
+
+                            case MultiEpisodeStyle.Repeat:
+                                seasonEpisodePattern += episodeFormat.EpisodeSeparator + episodeFormat.EpisodePattern;
+                                break;
+
+                            case MultiEpisodeStyle.Scene:
+                                seasonEpisodePattern += "-" + episodeFormat.EpisodeSeparator + episodeFormat.EpisodePattern;
+                                break;
+
+                            //MultiEpisodeStyle.Extend
+                            default:
+                                seasonEpisodePattern += "-" + episodeFormat.EpisodePattern;
+                                break;
+                        }
+                    }
+
+                    seasonEpisodePattern = ReplaceNumberTokens(seasonEpisodePattern, episodes);
+                }
 
                 var token = String.Format("{{Season Episode{0}}}", index++);
                 pattern = pattern.Replace(episodeFormat.SeasonEpisodePattern, token);
@@ -340,32 +354,47 @@ namespace NzbDrone.Core.Organizer
 
                 var absoluteEpisodePattern = absoluteEpisodeFormat.AbsoluteEpisodePattern;
 
-                foreach (var episode in episodes.Skip(1))
+                var multiEpisodeStyle = (MultiEpisodeStyle)namingConfig.MultiEpisodeStyle;
+
+                if (multiEpisodeStyle == MultiEpisodeStyle.Range && episodes.Count > 1)
                 {
-                    switch ((MultiEpisodeStyle)namingConfig.MultiEpisodeStyle)
-                    {
-                        case MultiEpisodeStyle.Duplicate:
-                            absoluteEpisodePattern += absoluteEpisodeFormat.Separator +
-                                                        absoluteEpisodeFormat.AbsoluteEpisodePattern;
-                            break;
-
-                        case MultiEpisodeStyle.Repeat:
-                            absoluteEpisodePattern += absoluteEpisodeFormat.Separator +
-                                                        absoluteEpisodeFormat.AbsoluteEpisodePattern;
-                            break;
-
-                        case MultiEpisodeStyle.Scene:
-                            absoluteEpisodePattern += "-" + absoluteEpisodeFormat.AbsoluteEpisodePattern;
-                            break;
-
-                        //MultiEpisodeStyle.Extend
-                        default:
-                            absoluteEpisodePattern += "-" + absoluteEpisodeFormat.AbsoluteEpisodePattern;
-                            break;
-                    }
+                    absoluteEpisodePattern += "-" + absoluteEpisodeFormat.AbsoluteEpisodePattern;
+                    absoluteEpisodePattern = ReplaceAbsoluteNumberTokens(absoluteEpisodePattern, new List<Episode>
+                                                                                                    {
+                                                                                                        episodes.First(),
+                                                                                                        episodes.Last()
+                                                                                                    });
                 }
 
-                absoluteEpisodePattern = ReplaceAbsoluteNumberTokens(absoluteEpisodePattern, episodes);
+                else
+                {
+                    foreach (var episode in episodes.Skip(1))
+                    {
+                        switch (multiEpisodeStyle)
+                        {
+                            case MultiEpisodeStyle.Duplicate:
+                                absoluteEpisodePattern += absoluteEpisodeFormat.Separator +
+                                                            absoluteEpisodeFormat.AbsoluteEpisodePattern;
+                                break;
+
+                            case MultiEpisodeStyle.Repeat:
+                                absoluteEpisodePattern += absoluteEpisodeFormat.Separator +
+                                                            absoluteEpisodeFormat.AbsoluteEpisodePattern;
+                                break;
+
+                            case MultiEpisodeStyle.Scene:
+                                absoluteEpisodePattern += "-" + absoluteEpisodeFormat.AbsoluteEpisodePattern;
+                                break;
+
+                            //MultiEpisodeStyle.Extend
+                            default:
+                                absoluteEpisodePattern += "-" + absoluteEpisodeFormat.AbsoluteEpisodePattern;
+                                break;
+                        }
+                    }
+
+                    absoluteEpisodePattern = ReplaceAbsoluteNumberTokens(absoluteEpisodePattern, episodes);
+                }
 
                 var token = String.Format("{{Absolute Pattern{0}}}", index++);
                 pattern = pattern.Replace(absoluteEpisodeFormat.AbsoluteEpisodePattern, token);
@@ -684,6 +713,7 @@ namespace NzbDrone.Core.Organizer
         Extend = 0,
         Duplicate = 1,
         Repeat = 2,
-        Scene = 3
+        Scene = 3,
+        Range = 4
     }
 }
