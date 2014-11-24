@@ -12,7 +12,5 @@ namespace NzbDrone.Core.Profiles
         public Quality Cutoff { get; set; }
         public List<ProfileQualityItem> Items { get; set; }
         public Language Language { get; set; }
-        public Int32 GrabDelay { get; set; }
-        public GrabDelayMode GrabDelayMode { get; set; }
     }
 }

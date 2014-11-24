@@ -1,9 +1,10 @@
 using System.Linq;
 using NLog;
 using NzbDrone.Core.Download.Pending;
+using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser.Model;
-using NzbDrone.Core.Profiles;
+using NzbDrone.Core.Profiles.Delay;
 using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
@@ -12,12 +13,17 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
     {
         private readonly IPendingReleaseService _pendingReleaseService;
         private readonly IQualityUpgradableSpecification _qualityUpgradableSpecification;
+        private readonly IDelayProfileService _delayProfileService;
         private readonly Logger _logger;
 
-        public DelaySpecification(IPendingReleaseService pendingReleaseService, IQualityUpgradableSpecification qualityUpgradableSpecification, Logger logger)
+        public DelaySpecification(IPendingReleaseService pendingReleaseService,
+                                  IQualityUpgradableSpecification qualityUpgradableSpecification,
+                                  IDelayProfileService delayProfileService,
+                                  Logger logger)
         {
             _pendingReleaseService = pendingReleaseService;
             _qualityUpgradableSpecification = qualityUpgradableSpecification;
+            _delayProfileService = delayProfileService;
             _logger = logger;
         }
 
@@ -35,8 +41,12 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
             }
 
             var profile = subject.Series.Profile.Value;
+            var delayProfiles = _delayProfileService.AllForTags(subject.Series.Tags);
+            var delayProfile = delayProfiles.OrderBy(d => d.Order).First();
+            var delay = subject.Release.DownloadProtocol == DownloadProtocol.Torrent ? delayProfile.TorrentDelay : delayProfile.UsenetDelay;
+            var delayMode = subject.Release.DownloadProtocol == DownloadProtocol.Torrent ? delayProfile.TorrentDelayMode : delayProfile.UsenetDelayMode;
 
-            if (profile.GrabDelay == 0)
+            if (delay == 0)
             {
                 _logger.Debug("Profile does not delay before download");
                 return Decision.Accept();
@@ -70,7 +80,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                 return Decision.Accept();
             }
 
-            if (profile.GrabDelayMode == GrabDelayMode.Cutoff)
+            if (delayMode == GrabDelayMode.Cutoff)
             {
                 var cutoff = new QualityModel(profile.Cutoff);
                 var cutoffCompare = comparer.Compare(subject.ParsedEpisodeInfo.Quality, cutoff);
@@ -82,7 +92,7 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                 }
             }
 
-            if (profile.GrabDelayMode == GrabDelayMode.First)
+            if (delayMode == GrabDelayMode.First)
             {
                 var episodeIds = subject.Episodes.Select(e => e.Id);
 
@@ -91,15 +101,15 @@ namespace NzbDrone.Core.DecisionEngine.Specifications.RssSync
                                                             .OrderByDescending(p => p.Release.AgeHours)
                                                             .FirstOrDefault();
 
-                if (oldest != null && oldest.Release.AgeHours > profile.GrabDelay)
+                if (oldest != null && oldest.Release.AgeHours > delay)
                 {
                     return Decision.Accept();
                 }
             }
 
-            if (subject.Release.AgeHours < profile.GrabDelay)
+            if (subject.Release.AgeHours < delay)
             {
-                _logger.Debug("Age ({0}) is less than delay {1}, delaying", subject.Release.AgeHours, profile.GrabDelay);
+                _logger.Debug("Age ({0}) is less than delay {1}, delaying", subject.Release.AgeHours, delay);
                 return Decision.Reject("Waiting for better quality release");
             }
 

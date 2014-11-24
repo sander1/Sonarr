@@ -4,9 +4,11 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common;
 using NzbDrone.Core.DecisionEngine;
+using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Delay;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.Tv;
 using NzbDrone.Core.Tv.Events;
@@ -28,18 +30,21 @@ namespace NzbDrone.Core.Download.Pending
         private readonly IPendingReleaseRepository _repository;
         private readonly ISeriesService _seriesService;
         private readonly IParsingService _parsingService;
+        private readonly IDelayProfileService _delayProfileService;
         private readonly IEventAggregator _eventAggregator;
         private readonly Logger _logger;
 
         public PendingReleaseService(IPendingReleaseRepository repository,
                                     ISeriesService seriesService,
                                     IParsingService parsingService,
+                                    IDelayProfileService delayProfileService,
                                     IEventAggregator eventAggregator,
                                     Logger logger)
         {
             _repository = repository;
             _seriesService = seriesService;
             _parsingService = parsingService;
+            _delayProfileService = delayProfileService;
             _eventAggregator = eventAggregator;
             _logger = logger;
         }
@@ -137,8 +142,7 @@ namespace NzbDrone.Core.Download.Pending
             {
                 foreach (var episode in pendingRelease.RemoteEpisode.Episodes)
                 {
-                    var ect = pendingRelease.Release.PublishDate.AddHours(
-                              pendingRelease.RemoteEpisode.Series.Profile.Value.GrabDelay);
+                    var ect = pendingRelease.Release.PublishDate.AddMinutes(GetDelay(pendingRelease.RemoteEpisode));
 
                     var queue = new Queue.Queue
                                 {
@@ -222,6 +226,13 @@ namespace NzbDrone.Core.Download.Pending
             return p => p.Title == decision.RemoteEpisode.Release.Title &&
                    p.Release.PublishDate == decision.RemoteEpisode.Release.PublishDate &&
                    p.Release.Indexer == decision.RemoteEpisode.Release.Indexer;
+        }
+
+        private int GetDelay(RemoteEpisode remoteEpisode)
+        {
+            var delayProfile = _delayProfileService.AllForTags(remoteEpisode.Series.Tags).OrderBy(d => d.Order).First();
+
+            return remoteEpisode.Release.DownloadProtocol == DownloadProtocol.Torrent ? delayProfile.TorrentDelay : delayProfile.UsenetDelay;
         }
 
         public void Handle(SeriesDeletedEvent message)

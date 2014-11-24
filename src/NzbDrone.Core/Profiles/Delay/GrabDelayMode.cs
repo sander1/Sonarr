@@ -1,4 +1,4 @@
-﻿namespace NzbDrone.Core.Profiles
+﻿namespace NzbDrone.Core.Profiles.Delay
 {
     public enum GrabDelayMode
     {
